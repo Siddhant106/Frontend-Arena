@@ -1,5 +1,8 @@
 /* eslint-disable no-useless-escape */
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import type { FinanceData, Goal, Tx } from './types/finance'
+import { money, uid } from './lib/format'
+import { loadFinanceData, safeStorageSet } from './lib/storage'
 import { Sparkles, Send, Moon, Sun } from 'lucide-react'
 import {
   Activity, ArrowDownLeft, ArrowUpRight, Bell, CalendarDays,
@@ -9,29 +12,6 @@ import {
   AlertTriangle, SlidersHorizontal,
 } from 'lucide-react'
 const BalanceForecastChart = lazy(() => import('./components/BalanceForecastChart'))
-
-type Tx = {
-  id: string
-  title: string
-  category: string
-  amount: number
-  date: string
-  type: 'income' | 'expense'
-}
-
-type Goal = {
-  id: string
-  name: string
-  target: number
-  saved: number
-  color: string
-}
-
-type FinanceData = {
-  transactions: Tx[]
-  goals: Goal[]
-  subscriptions: { id: string; name: string; amount: number; due: number }[]
-}
 
 const initialData: FinanceData = {
   transactions: [
@@ -172,28 +152,6 @@ function parseCoachQuery(text: string): ParsedCoachQuery {
   };
 }
 
-const money = (n: number) =>
-  '₹' + Math.round(n).toLocaleString('en-IN')
-
-const uid = () => Math.random().toString(36).slice(2, 10)
-
-function safeStorageSet(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    // Storage can be unavailable in private browsing or when the quota is exceeded.
-  }
-}
-
-function loadData(): FinanceData {
-  try {
-    const raw = localStorage.getItem('paisapilot-data')
-    return raw ? JSON.parse(raw) as FinanceData : initialData
-  } catch {
-    return initialData
-  }
-}
-
 const nav = [
   { name: 'Overview', icon: LayoutDashboard },
   { name: 'Smart Budget', icon: SlidersHorizontal },
@@ -205,7 +163,7 @@ const nav = [
 ]
 
 export default function App() {
-  const [data, setData] = useState<FinanceData>(loadData)
+  const [data, setData] = useState<FinanceData>(() => loadFinanceData(initialData))
   const defaultCategoryLimits: Record<string, number> = { Food: 1800, Travel: 1200, Essentials: 2500, Lifestyle: 800, Bills: 600, Education: 1000, Shopping: 700, Unexpected: 500, Other: 500 }
   const [categoryLimits, setCategoryLimits] = useState<Record<string, number>>(() => {
     try {
@@ -261,8 +219,8 @@ export default function App() {
     [data.transactions],
   )
   const balance = income - spent
-  const today = 8
-  const daysLeft = 30 - today
+  const today = Math.min(new Date().getDate(), 30)
+  const daysLeft = Math.max(1, 30 - today)
   const bills = data.subscriptions.reduce((s, x) => s + x.amount, 0)
   const spendable = Math.max(0, balance - bills)
   const daily = spendable / daysLeft
@@ -778,7 +736,8 @@ export default function App() {
         .pp-dark input::placeholder,
         .pp-dark textarea::placeholder { color:#8fa3bd !important; }
       `}</style>
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-61 flex-col border-r border-slate-200 bg-white px-5 py-6 lg:flex">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-61 flex-col border-r border-slate-200 bg-white px-5 py-6 lg:flex" aria-label="Primary sidebar">
         <div className="mb-10 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500 text-white">
             <Wallet size={22} />
@@ -789,13 +748,13 @@ export default function App() {
           </div>
         </div>
         <div className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[.18em] text-slate-400">Workspace</div>
-        <nav className="space-y-1">
+        <nav className="space-y-1" aria-label="Primary navigation">
           {nav.map(item => {
             const Icon = item.icon
             const active = page === item.name
             return (
               <button key={item.name} onClick={() => setPage(item.name)}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${active ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>
+                aria-current={active ? 'page' : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${active ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>
                 <Icon size={18} /> {item.name}
                 {item.name === 'Decision lab' && <span className="ml-auto rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">NEW</span>}
               </button>
@@ -810,7 +769,7 @@ export default function App() {
         <button onClick={resetDemo} className="mt-4 flex items-center gap-2 px-2 py-2 text-xs text-slate-400 hover:text-slate-700"><RefreshCw size={14}/> Reset demo data</button>
       </aside>
 
-      <main className="min-h-screen lg:ml-61">
+      <main id="main-content" tabIndex={-1} className="min-h-screen lg:ml-61">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 py-4 backdrop-blur-md sm:px-8">
           <div>
             <div className="text-xs text-slate-400">Personal finance / {page}</div>
@@ -1150,9 +1109,9 @@ export default function App() {
         </div>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 z-20 grid grid-cols-6 border-t border-slate-200 bg-white px-1 py-2 lg:hidden">
-        {nav.map(item=>{const Icon=item.icon;return <button key={item.name} onClick={()=>setPage(item.name)} className={`flex flex-col items-center gap-1 py-1 text-[9px] font-semibold ${page===item.name?'text-emerald-700':'text-slate-400'}`}><Icon size={19}/><span>{item.name==='Decision lab'?'Simulator':item.name==='Savings goals'?'Goals':item.name==='Commitments'?'Bills':item.name==='Smart Budget'?'Budget':item.name}</span></button>})}
-      </div>
+      <nav aria-label="Mobile navigation" className="fixed bottom-0 left-0 right-0 z-20 grid grid-cols-7 border-t border-slate-200 bg-white px-1 py-2 lg:hidden">
+        {nav.map(item=>{const Icon=item.icon;return <button key={item.name} aria-current={page===item.name ? 'page' : undefined} onClick={()=>setPage(item.name)} className={`flex min-w-0 flex-col items-center gap-1 py-1 text-[9px] font-semibold ${page===item.name?'text-emerald-700':'text-slate-400'}`}><Icon size={19}/><span className="max-w-full truncate">{item.name==='Decision lab'?'Simulator':item.name==='Savings goals'?'Goals':item.name==='Commitments'?'Bills':item.name==='Smart Budget'?'Budget':item.name}</span></button>})}
+      </nav>
 
       {showAdd&&<div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm" onClick={e=>{if(e.target===e.currentTarget)setShowAdd(false)}}><form onSubmit={e=>{e.preventDefault();addTransaction()}} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-extrabold">Add transaction</h2><p className="mt-1 text-xs text-slate-400">Keep your budget up to date.</p></div><button type="button" onClick={()=>setShowAdd(false)} className="rounded-lg p-2 hover:bg-slate-100"><X size={18}/></button></div>

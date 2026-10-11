@@ -1,25 +1,29 @@
 # PaisaPilot optimization notes
 
-## Changes in this version
+## Changes in this revision
 
-- Split the balance forecast chart into `src/components/BalanceForecastChart.tsx` and lazy-load it from `src/App.tsx`, so Recharts can be requested as a separate chunk instead of being imported directly by the main application module.
-- Added a loading status while the forecast chart chunk loads.
-- Added an accessible label for the forecast chart region.
-- Made localStorage writes best-effort for transaction data and category limits, matching the existing defensive handling for theme storage. This avoids an unhandled storage exception in browser contexts where storage is unavailable or full.
-- Kept finance calculations, existing transaction/goal/subscription flows, and localStorage key names unchanged.
+- Extracted shared finance data types into `src/types/finance.ts`.
+- Extracted currency formatting and demo IDs into `src/lib/format.ts`.
+- Extracted defensive browser storage and persisted-data validation into `src/lib/storage.ts`.
+- Added a current-day-based forecast calculation and a lower bound to avoid division by zero near month end.
+- Added a keyboard skip link, named navigation landmarks, active-page semantics, and visible focus styles.
+- Updated the mobile navigation to account for all seven app destinations.
+- Added reduced-motion support and more restrained responsive hover treatment.
+- Added document description, theme color, and social preview metadata.
+- Replaced the starter README with setup, feature, privacy, architecture, verification, and deployment documentation.
+- Added `docs/ARCHITECTURE.md` with the current data flow, design decisions, and limitations.
+- Added `typecheck` and `check` npm scripts.
 
-## Verify locally
+## Verification
 
-From the project root, run:
+The TypeScript build step and ESLint completed successfully in the available environment using the dependencies extracted from the supplied archive. The Vite production bundler could not run because the archived `node_modules` is missing a platform-specific optional Rolldown native binding. This is an environment/dependency-install issue, so run a clean `npm ci` before relying on a production build.
+
+Recommended checks from the project folder:
 
 ```bash
 npm ci
-npm run build
-npm run lint
+npm run check
+npm run preview
 ```
 
-Then run `npm run dev` and check Overview, theme switching, adding a transaction, editing category limits, and the balance forecast chart. Confirm that a failed/blocked localStorage write does not crash the UI.
-
-## Verification status
-
-The source changes are packaged, but a clean production build could not be verified in the packaging environment because dependency installation did not complete and TypeScript could not resolve `vite/client` and `node` types. Please run the commands above in your local project before deploying.
+If `npm ci` fails on Windows with an `EPERM` error, close active Node/Vite processes, remove only `node_modules`, then retry `npm ci`. Keep `package-lock.json` so installation remains reproducible.
